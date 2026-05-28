@@ -874,25 +874,3 @@ sleep 60
 terraform -chdir=terraform destroy
 ```
 
----
-
-## Repository layout
-
-```
-core/        Forecaster (Prophet + CachedProphet + GraduatedForecaster), planner, reactive baseline
-service/     FastAPI scaler — reads Prometheus, forecasts, serves /desired-replicas
-sim/         Offline simulation harness + synthetic trace generator + compare script
-helm/        predictive-scaler chart (Deployment, ScaledObject, PDB, NetworkPolicy)
-terraform/   EKS + VPC via community modules, S3 state backend
-k8s/         demo app, load generator, ServiceMonitor
-scripts/     install-addons, deploy, demo, port-forward, teardown, loadgen
-diagrams/    architecture.png
-screenshots/ comparison.png + captured live-demo shots
-tests/       unit tests — planner logic, forecaster caching/graduation, state persistence
-```
-
----
-
-## License
-
-MIT
