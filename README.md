@@ -1,4 +1,4 @@
-# Predictive Autoscaler on EKS
+# Predictive K8s Autoscaler with Prophet + KEDA
 
 Proactive Kubernetes autoscaling for AWS EKS. A Prophet forecaster predicts
 near-future request load and pre-scales the workload **before** traffic
