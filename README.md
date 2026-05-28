@@ -253,8 +253,8 @@ for a fresh dev account.
 ### Step 1 — Clone the repository
 
 ```bash
-git clone https://github.com/Abhiram-Rakesh/predictive-k8s-autoscaler-prophet-keda.git
-cd predictive-k8s-autoscaler-prophet-keda
+git clone https://github.com/Abhiram-Rakesh/Predictive-K8s-Autoscaler-Prophet-Keda.git
+cd Predictive-K8s-Autoscaler-Prophet-Keda
 ```
 
 **Success indicator:** `ls` shows `Makefile`, `terraform/`, `helm/`, `core/`,
