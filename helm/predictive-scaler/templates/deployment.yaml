@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: predictive-scaler
+  labels:
+    app.kubernetes.io/name: predictive-scaler
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: predictive-scaler
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: predictive-scaler
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      # Pod-level security: non-root user defined here; container-level adds the
+      # rootfs hardening below.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+        - name: scaler
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - containerPort: {{ .Values.service.port }}
+          env:
+            - name: FORECASTER
+              value: "{{ .Values.scaler.forecaster }}"
+            - name: CAPACITY_PER_POD
+              value: "{{ .Values.scaler.capacityPerPod }}"
+            - name: HEADROOM
+              value: "{{ .Values.scaler.headroom }}"
+            - name: MIN_REPLICAS
+              value: "{{ .Values.scaler.minReplicas }}"
+            - name: MAX_REPLICAS
+              value: "{{ .Values.scaler.maxReplicas }}"
+            - name: HORIZON_MIN
+              value: "{{ .Values.scaler.horizonMin }}"
+            - name: HISTORY_WINDOW
+              value: "{{ .Values.scaler.historyWindow }}"
+            - name: REFIT_AFTER_SEC
+              value: "{{ .Values.scaler.refitAfterSec }}"
+            - name: GRADUATE_AT_ROWS
+              value: "{{ .Values.scaler.graduateAtRows }}"
+            - name: PROMETHEUS_TIMEOUT_SEC
+              value: "{{ .Values.scaler.prometheusTimeoutSec }}"
+            - name: STATE_FILE_PATH
+              value: "{{ .Values.scaler.stateFilePath }}"
+            - name: LOG_LEVEL
+              value: "{{ .Values.scaler.logLevel }}"
+            - name: PROMETHEUS_URL
+              value: "{{ .Values.scaler.prometheusUrl }}"
+            - name: PROMETHEUS_QUERY
+              value: {{ .Values.scaler.prometheusQuery | quote }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.service.port }}
+            initialDelaySeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.service.port }}
+            initialDelaySeconds: 20
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          # readOnlyRootFilesystem demands an explicit writable mount. Only
+          # /tmp is needed at runtime -- Prophet's Stan model is precompiled
+          # into the wheel at install time, not at runtime.
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: predictive-scaler
+  labels:
+    app.kubernetes.io/name: predictive-scaler
+spec:
+  selector:
+    app.kubernetes.io/name: predictive-scaler
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.port }}

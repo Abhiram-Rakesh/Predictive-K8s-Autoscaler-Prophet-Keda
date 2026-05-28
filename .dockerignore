@@ -1,0 +1,12 @@
+**/__pycache__
+*.pyc
+.git
+.github
+terraform
+sim
+tests
+screenshots
+diagrams
+*.md
+.venv
+.pytest_cache

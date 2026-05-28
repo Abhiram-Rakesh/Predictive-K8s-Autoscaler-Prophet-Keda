@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: load-generator
+  namespace: default
+  labels:
+    app: load-generator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: load-generator
+  template:
+    metadata:
+      labels:
+        app: load-generator
+    spec:
+      containers:
+        - name: load
+          image: python:3.12-slim
+          command: ["python", "/scripts/loadgen.py"]
+          env:
+            - name: TARGET_URL
+              value: "http://demo-app.default.svc/"
+            # Repeating ramp every PERIOD_SEC, with one surprise spike at SPIKE_AT_SEC.
+            - name: PERIOD_SEC
+              value: "300"
+            - name: BASE_RPS
+              value: "5"
+            - name: PEAK_RPS
+              value: "40"
+            - name: SPIKE_AT_SEC
+              value: "900"
+            - name: SPIKE_RPS
+              value: "60"
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 128Mi
+      volumes:
+        - name: scripts
+          configMap:
+            name: loadgen-script

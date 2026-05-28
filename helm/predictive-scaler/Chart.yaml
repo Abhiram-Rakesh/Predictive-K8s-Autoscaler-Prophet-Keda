@@ -1,0 +1,15 @@
+apiVersion: v2
+name: predictive-scaler
+description: Prophet-driven predictive autoscaler with a reactive KEDA safety net.
+type: application
+version: 0.2.0
+appVersion: "0.2.0"
+keywords:
+  - kubernetes
+  - autoscaling
+  - keda
+  - prophet
+  - forecasting
+home: https://github.com/Abhiram-Rakesh/predictive-autoscaler-eks
+maintainers:
+  - name: Abhiram Rakesh

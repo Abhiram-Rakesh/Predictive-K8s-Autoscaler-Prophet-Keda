@@ -1,0 +1,22 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: demo-app
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  namespaceSelector:
+    matchNames:
+      - default
+  selector:
+    matchLabels:
+      app: demo-app
+  endpoints:
+    - port: metrics
+      interval: 15s
+      # The exporter labels metrics with its own job; relabel so our queries
+      # can filter by app="demo-app".
+      relabelings:
+        - targetLabel: app
+          replacement: demo-app

@@ -1,0 +1,94 @@
+image:
+  repository: ghcr.io/abhiram-rakesh/predictive-scaler
+  # IMPORTANT: pin to an immutable tag in production (SHA or semver), never
+  # rely on `latest`. CI publishes both :latest (for demo convenience) and
+  # :<git-sha> (for production). Override this from `helm install --set` or
+  # an environment-specific values file.
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Two replicas + a PodDisruptionBudget so a node drain or rolling deploy can't
+# leave KEDA with the reactive trigger alone. The two pods race to read
+# Prometheus and serve KEDA; whoever responds first wins. Their forecasts
+# converge because they read the same history.
+replicaCount: 2
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+service:
+  port: 8080
+
+# Forecaster + planner tuning (passed to the service as env vars).
+scaler:
+  forecaster: prophet        # prophet (graduated, cached) | naive
+  capacityPerPod: 50         # load one demo-app pod serves (req/s)
+  headroom: 0.3              # safety buffer on top of the forecast upper bound
+  minReplicas: 1
+  maxReplicas: 20
+  horizonMin: 10             # how far ahead to forecast (minutes)
+  historyWindow: 2880        # minutes of history fed to the forecaster
+  refitAfterSec: 180         # Prophet refit cadence (cache TTL)
+  graduateAtRows: 1440       # promote from SeasonalNaive to Prophet after this much history
+  prometheusTimeoutSec: 5
+  logLevel: INFO
+  prometheusUrl: http://monitoring-kube-prometheus-prometheus.monitoring.svc:9090
+  prometheusQuery: 'sum(rate(nginx_http_requests_total{app="demo-app"}[1m]))'
+  # State file path lives on an emptyDir mounted at /tmp (see deployment template).
+  # Survives container restarts within a pod, NOT pod rescheduling -- which is
+  # fine because peer pods carry continuity and the planner re-reads from there.
+  stateFilePath: /tmp/predictive-scaler-state.json
+
+# The workload being scaled (the demo app).
+target:
+  name: demo-app
+  namespace: default
+
+# Reactive safety-net trigger thresholds (KEDA takes the max of predictive + reactive).
+reactive:
+  enabled: true
+  prometheusServerAddress: http://monitoring-kube-prometheus-prometheus.monitoring.svc:9090
+  threshold: "35"
+  query: 'sum(rate(nginx_http_requests_total{app="demo-app"}[1m]))'
+
+keda:
+  pollingInterval: 15
+  cooldownPeriod: 120
+
+# Bumped to 500m CPU because Prophet + Stan threads collide badly with a tight
+# cgroup limit -- a too-low limit makes fits SLOWER, not cheaper. With CachedProphet
+# refitting only every refitAfterSec, average CPU is far below this peak.
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+# Container security hardening. readOnlyRootFilesystem requires writable mounts
+# at /tmp (state file + Prophet/cmdstanpy compilation artefacts) -- these are
+# provided as emptyDir volumes in the deployment template.
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
+
+serviceAccount:
+  create: true
+  name: predictive-scaler
+
+# NetworkPolicy scoping the scaler's egress to the bits it actually needs:
+# Prometheus (history) and DNS. Requires a CNI that ENFORCES NetworkPolicies
+# (Calico, Cilium, or EKS's native enforcement). EKS's default VPC CNI does
+# NOT enforce them without the network-policy add-on -- see README.
+networkPolicy:
+  enabled: true
+  prometheusNamespace: monitoring

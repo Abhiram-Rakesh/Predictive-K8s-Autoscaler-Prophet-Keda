@@ -1,0 +1,18 @@
+aws_region      = "ap-south-1"
+cluster_name    = "predictive-autoscaler"
+cluster_version = "1.32"
+
+node_instance_type = "t3.large"
+node_min           = 2
+node_max           = 5
+node_desired       = 2
+
+tags = {
+  Project = "predictive-autoscaler-eks"
+  Owner   = "your-name"
+}
+
+# Restrict the EKS public API endpoint to known CIDRs. The default in
+# variables.tf is 0.0.0.0/0 (open) for demo convenience -- set this to
+# your office or VPN egress IP before sharing the cluster.
+# cluster_endpoint_public_access_cidrs = ["203.0.113.0/24"]

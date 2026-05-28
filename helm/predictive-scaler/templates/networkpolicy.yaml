@@ -1,0 +1,46 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: predictive-scaler
+  labels:
+    app.kubernetes.io/name: predictive-scaler
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: predictive-scaler
+  policyTypes:
+    - Ingress
+    - Egress
+  # Ingress: KEDA polls /desired-replicas; allow from the keda namespace.
+  # Also allow from within our own namespace for kubectl port-forward debugging.
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: keda
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.service.port }}
+  # Egress: Prometheus for history, DNS for service discovery. Nothing else.
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.prometheusNamespace }}
+      ports:
+        - protocol: TCP
+          port: 9090
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- end }}

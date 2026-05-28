@@ -1,0 +1,31 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ .Values.target.name }}-predictive
+  namespace: {{ .Values.target.namespace }}
+spec:
+  scaleTargetRef:
+    name: {{ .Values.target.name }}
+  pollingInterval: {{ .Values.keda.pollingInterval }}
+  cooldownPeriod: {{ .Values.keda.cooldownPeriod }}
+  minReplicaCount: {{ .Values.scaler.minReplicas }}
+  maxReplicaCount: {{ .Values.scaler.maxReplicas }}
+  triggers:
+    # Proactive: the replica count our forecaster computes. This pre-scales
+    # for load expected in the next few minutes.
+    - type: metrics-api
+      metadata:
+        targetValue: "1"
+        url: "http://predictive-scaler.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}/desired-replicas"
+        valueLocation: "replicas"
+    {{- if .Values.reactive.enabled }}
+    # Reactive safety net: if real load outruns the forecast (an unplanned
+    # spike Prophet cannot see), this still scales us up. KEDA takes the MAX
+    # of all triggers, so the predictive path is a floor, never a ceiling.
+    - type: prometheus
+      metadata:
+        serverAddress: {{ .Values.reactive.prometheusServerAddress }}
+        metricName: demo_app_rps
+        threshold: {{ .Values.reactive.threshold | quote }}
+        query: {{ .Values.reactive.query | quote }}
+    {{- end }}
