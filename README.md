@@ -33,6 +33,12 @@ Predictive scaling eliminated cold-start shortfall on the predictable ramp for
 ~12% more pod-minutes. That tradeoff is the whole point: spend a little extra
 capacity to remove the lag reactive scaling suffers during a ramp.
 
+(Re-running `python -m sim.compare` yourself will land within a few dozen
+pod-minutes of the predictive row above, not exactly on it — Prophet's Stan
+backend fits via MCMC, which is stochastic run-to-run. `under-provisioned min`
+and `dropped load` should stay at `0`/`0.0` consistently; `reactive HPA`'s row
+is deterministic and should match exactly.)
+
 ![Reactive vs predictive](screenshots/comparison.png)
 
 The chart shows day 4 of the trace. Reactive capacity (red) repeatedly lags the
@@ -205,7 +211,11 @@ Verify:
 docker run hello-world
 ```
 
-**Success indicator:** The Docker daemon prints `Hello from Docker!`.
+**Success indicator:** The Docker daemon prints `Hello from Docker!`. If you
+get `Cannot connect to the Docker daemon` even though Docker is installed, the
+daemon service isn't running yet — `sudo systemctl start docker` on Linux (and
+add yourself to the `docker` group if you don't want to `sudo` every command:
+`sudo usermod -aG docker "$USER"`, then start a new shell).
 
 ### 6. Python 3.12 (offline simulation only)
 
@@ -310,6 +320,14 @@ aws s3api create-bucket \
 aws s3api put-bucket-versioning \
   --bucket "$TF_STATE_BUCKET" \
   --versioning-configuration Status=Enabled
+
+aws s3api put-bucket-encryption \
+  --bucket "$TF_STATE_BUCKET" \
+  --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+
+aws s3api put-public-access-block \
+  --bucket "$TF_STATE_BUCKET" \
+  --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
 ```
 
 Verify:
@@ -464,6 +482,11 @@ build locally:
 docker build -t ghcr.io/<owner>/predictive-scaler:latest .
 docker push ghcr.io/<owner>/predictive-scaler:latest
 ```
+
+`<owner>` must be lowercase — Docker/GHCR reject mixed-case repository names
+outright (`repository name must be lowercase`). If your GitHub username has
+uppercase letters, lowercase it in the tag even though the account itself
+doesn't need to change.
 
 Expected output (last lines):
 ```
