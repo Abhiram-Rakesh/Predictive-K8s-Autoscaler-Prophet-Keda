@@ -3,10 +3,10 @@
 .git
 .github
 terraform
-sim
 tests
 screenshots
 diagrams
 *.md
+!README.md
 .venv
 .pytest_cache
