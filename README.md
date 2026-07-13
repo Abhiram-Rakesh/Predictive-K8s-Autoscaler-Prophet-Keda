@@ -181,7 +181,9 @@ Expected output:
 version.BuildInfo{Version:"v3.14.4", GitCommit:"...", ...}
 ```
 
-**Success indicator:** Version is v3.x.
+**Success indicator:** Version is v3.x. (Helm v4 also works for everything
+this repo uses — `install`/`upgrade`/`uninstall` — though it's not the
+version this README was originally written against.)
 
 ### 5. Docker
 
@@ -265,7 +267,7 @@ cd Predictive-K8s-Autoscaler-Prophet-Keda
 Confirm everything works before spinning up any AWS infrastructure:
 
 ```bash
-pip install -e ".[test]"
+pip install -e ".[test,service]"
 python -m pytest tests/ -q
 python -m sim.compare
 ```
@@ -285,7 +287,10 @@ wrote screenshots/comparison.png
 ```
 
 **Success indicator:** 14 tests pass and `screenshots/comparison.png` is
-updated. If Prophet is missing, `pip install prophet` and retry.
+updated. If Prophet is missing, `pip install prophet` and retry. The `service`
+extra is required even for tests — `tests/test_service_state.py` imports
+`service/app.py`, which pulls in `requests`, `fastapi`, and
+`prometheus-api-client`.
 
 ### Step 3 — Create the Terraform state bucket
 
@@ -348,15 +353,18 @@ terraform apply tfplan
 cd ..
 ```
 
-Expected output (last lines of `apply`):
+Expected output (last lines of `apply`, resource count varies with module
+versions — treat the number as illustrative, not exact):
 ```
-Apply complete! Resources: 34 added, 0 changed, 0 destroyed.
+Apply complete! Resources: 56 added, 0 changed, 0 destroyed.
 
 Outputs:
 
-cluster_name     = "predictive-autoscaler"
-cluster_endpoint = "https://EXAMPLE.gr7.ap-south-1.eks.amazonaws.com"
-region           = "ap-south-1"
+aws_region         = "ap-south-1"
+cluster_endpoint   = "https://EXAMPLE.gr7.ap-south-1.eks.amazonaws.com"
+cluster_name       = "predictive-autoscaler"
+kubeconfig_command = "aws eks update-kubeconfig --region ap-south-1 --name predictive-autoscaler"
+vpc_id             = "vpc-EXAMPLE"
 ```
 
 **Success indicator:** `aws eks list-clusters --region $AWS_REGION` includes
@@ -441,7 +449,10 @@ Verify:
 kubectl get pods -n keda
 ```
 
-**Success indicator:** All KEDA pods are `Running`.
+**Success indicator:** All KEDA pods are `Running`. You'll see a startup
+warning that KEDA is "running on unsupported Kubernetes version 1.32" (KEDA's
+tested baseline is 1.33+) — this is a soft warning, not a failure; the chart
+installs and functions normally on this repo's default cluster version.
 
 ### Step 7 — Build and push the scaler image
 
@@ -836,6 +847,44 @@ helm upgrade predictive-scaler helm/predictive-scaler/ \
 
 **Success indicator:** `kubectl top pod` shows CPU usage dropping back below
 the limit between refit windows.
+
+### 7. Pods can't reach each other across nodes — Service/pod-IP connections time out
+
+Symptom: a pod on one node can reach a Service or pod IP on the *same* node
+fine, but connections to a pod scheduled on a *different* node hang and time
+out (no `Connection refused`, just silence). This shows up as, e.g., the load
+generator never producing any measurable RPS even though it's running, or
+Prometheus showing no scrape data for a target on another node.
+
+Diagnosis — same-node vs cross-node is the tell:
+```bash
+# From a pod, connect directly to another pod's IP (bypasses Services/kube-proxy)
+kubectl exec -it <pod> -- python3 -c "
+import socket
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM); s.settimeout(3)
+s.connect(('<other-pod-ip>', <port>))
+print('connected')
+"
+```
+If this hangs only when the two pods are on different nodes (`kubectl get pods
+-o wide` to check), it's a security group issue, not a Kubernetes networking
+issue.
+
+Root cause: the `terraform-aws-modules/eks` module's default node security
+group only opens node-to-node traffic on ephemeral ports (1025-65535) plus DNS
+(53) and the control-plane webhook ports. Application ports below 1025 (nginx
+on 80, Prometheus on 9090, etc.) are never opened between nodes unless you add
+a rule for it. This repo's `terraform/main.tf` sets
+`node_security_group_additional_rules` with a self-referencing all-ports
+ingress rule specifically to cover this — if you see this symptom, check that
+rule wasn't removed or narrowed:
+
+```bash
+terraform -chdir=terraform state show 'module.eks.aws_security_group_rule.node["ingress_self_all"]'
+```
+
+**Success indicator:** the same-node vs cross-node connect test above succeeds
+in both cases.
 
 ---
 
