@@ -47,6 +47,22 @@ module "eks" {
   vpc_id     = module.vpc.vpc_id
   subnet_ids = module.vpc.private_subnets
 
+  # The module's default node security group only opens node-to-node traffic
+  # on ephemeral ports (1025-65535) plus DNS and control-plane webhook ports.
+  # Pod-to-pod traffic on application ports (e.g. nginx on 80, Prometheus on
+  # 9090) between pods scheduled on different nodes is otherwise silently
+  # dropped -- same-node traffic works, cross-node traffic times out.
+  node_security_group_additional_rules = {
+    ingress_self_all = {
+      description = "Node to node all ports/protocols"
+      protocol    = "-1"
+      from_port   = 0
+      to_port     = 0
+      type        = "ingress"
+      self        = true
+    }
+  }
+
   eks_managed_node_groups = {
     demo = {
       instance_types = [var.node_instance_type]
