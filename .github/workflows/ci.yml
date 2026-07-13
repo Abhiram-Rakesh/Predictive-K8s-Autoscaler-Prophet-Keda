@@ -35,6 +35,13 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+      - name: Compute lowercase image repo
+        # Docker/GHCR require lowercase repository names; github.repository_owner
+        # preserves the account's display case (e.g. "Abhiram-Rakesh"), which
+        # buildx rejects outright.
+        id: image
+        run: |
+          echo "repo=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/predictive-scaler" >> "$GITHUB_OUTPUT"
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -47,14 +54,14 @@ jobs:
           context: .
           push: ${{ github.event_name != 'pull_request' }}
           tags: |
-            ghcr.io/${{ github.repository_owner }}/predictive-scaler:latest
-            ghcr.io/${{ github.repository_owner }}/predictive-scaler:${{ github.sha }}
+            ${{ steps.image.outputs.repo }}:latest
+            ${{ steps.image.outputs.repo }}:${{ github.sha }}
       - name: Image summary
         if: github.event_name != 'pull_request'
         run: |
           echo "### Image published" >> $GITHUB_STEP_SUMMARY
           echo "Pinned tag for production deploys:" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "ghcr.io/${{ github.repository_owner }}/predictive-scaler:${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.image.outputs.repo }}:${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
           echo "Use \`helm upgrade --set image.tag=${{ github.sha }} ...\` to deploy." >> $GITHUB_STEP_SUMMARY
