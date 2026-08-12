@@ -18,6 +18,30 @@ dies, the cluster degrades gracefully to ordinary reactive autoscaling.
 
 ---
 
+## Screenshots
+
+![Grafana: request rate vs replica count](screenshots/grafana-traffic-vs-replicas.png)
+
+The replica count (right) steps up in lockstep with the request-rate ramp
+(left), then steps back down once traffic falls — proof the deployment is
+actually scaling in response to load, live on the cluster.
+
+![KEDA ScaledObject with active triggers](screenshots/keda-hpa-active-triggers.png)
+
+`kubectl describe hpa` on the KEDA-managed HPA showing both triggers
+(`s0-metric-api-replicas` and `s1-prometheus`) reporting `Is Active: true` —
+proof the predictive endpoint and the Prometheus safety-net trigger are both
+wired up and being evaluated by KEDA.
+
+![Predictive scaler forecast logs](screenshots/predictive-scaler-forecast-logs.png)
+
+Live logs from the `predictive-scaler` pod showing `desired` replica counts
+computed from Prophet's `yhat`/`yhat_upper` forecast on each poll — proof the
+forecaster is running in-cluster and producing real predictions, not just in
+the offline simulation.
+
+---
+
 ## Does it actually help?
 
 The offline simulation replays a 4-day per-minute trace with a realistic daily
