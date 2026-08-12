@@ -3,8 +3,7 @@
 Proactive Kubernetes autoscaling for AWS EKS. A Prophet forecaster predicts
 near-future request load and pre-scales the workload **before** traffic
 arrives, while KEDA stays underneath as a reactive safety net. The forecaster
-is swappable; the scaling decision itself is deterministic arithmetic — not an
-LLM.
+is swappable.
 
 KEDA takes the **max** of the predictive endpoint and a direct Prometheus
 trigger, so the forecast is a floor, never a ceiling. If the predictive path
@@ -29,14 +28,14 @@ actually scaling in response to load, live on the cluster.
 ![KEDA ScaledObject with active triggers](screenshots/keda-hpa-active-triggers.png)
 
 `kubectl describe hpa` on the KEDA-managed HPA showing both triggers
-(`s0-metric-api-replicas` and `s1-prometheus`) reporting `Is Active: true` —
+(`s0-metric-api-replicas` and `s1-prometheus`) reporting `Is Active: true`
 proof the predictive endpoint and the Prometheus safety-net trigger are both
 wired up and being evaluated by KEDA.
 
 ![Predictive scaler forecast logs](screenshots/predictive-scaler-forecast-logs.png)
 
 Live logs from the `predictive-scaler` pod showing `desired` replica counts
-computed from Prophet's `yhat`/`yhat_upper` forecast on each poll — proof the
+computed from Prophet's `yhat`/`yhat_upper` forecast on each poll proof the
 forecaster is running in-cluster and producing real predictions, not just in
 the offline simulation.
 
@@ -68,7 +67,7 @@ is deterministic and should match exactly.)
 The chart shows day 4 of the trace. Reactive capacity (red) repeatedly lags the
 load ramp; the shaded area is dropped traffic. Predictive capacity (green) is
 already in place before each ramp peaks. The unplanned spike near the right edge
-is caught by the reactive KEDA trigger — Prophet only forecasts recurring
+is caught by the reactive KEDA trigger Prophet only forecasts recurring
 patterns.
 
 Reproduce the table and chart with **no cluster required**:
